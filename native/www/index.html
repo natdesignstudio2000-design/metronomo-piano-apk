@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#252525" />
+    <title>Metrónomo para Piano</title>
+    <style>
+      :root {
+        --bg: #252525;
+        --bg-deep: #1c1c1c;
+        --surface: #2b2b2b;
+        --surface-2: #323232;
+        --border: #3b3b3b;
+        --text: #f3f4ef;
+        --muted: #a5a8a0;
+        --accent: #b8ee3e;
+        --accent-dim: #8fc42a;
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg-deep);
+        color: var(--text);
+        font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+        overscroll-behavior: none;
+        user-select: none;
+      }
+      body {
+        background:
+          radial-gradient(1000px 500px at 50% -10%, rgba(184, 238, 62, 0.1), transparent 70%),
+          linear-gradient(180deg, #282828, #1c1c1c);
+        min-height: 100vh;
+        padding: 18px 14px 40px;
+      }
+      header { text-align: center; margin-bottom: 18px; }
+      header h1 {
+        font-size: 20px;
+        letter-spacing: 0.02em;
+        margin: 0;
+        background: linear-gradient(90deg, var(--accent), #e6ff9c);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      header p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+      .grid { display: grid; gap: 14px; max-width: 560px; margin: 0 auto; }
+      .panel {
+        background: linear-gradient(160deg, var(--surface-2), var(--surface));
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+      }
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--muted);
+      }
+      .bpm-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
+      .round {
+        width: 52px; height: 52px; border-radius: 50%;
+        border: 1px solid var(--border); background: var(--surface-2);
+        color: var(--text); font-size: 26px; line-height: 1;
+      }
+      .round:active { background: var(--accent); color: #1f2a06; }
+      #bpm {
+        width: 150px; background: transparent; border: none; color: var(--accent);
+        font-size: 64px; font-weight: 700; text-align: center; outline: none;
+      }
+      .term { text-align: center; color: var(--muted); font-size: 13px; margin-top: 2px; letter-spacing: 0.08em; }
+      input[type="range"] {
+        -webkit-appearance: none; width: 100%; height: 34px; background: transparent; margin-top: 8px;
+      }
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px;
+        border-radius: 50%; background: var(--accent); border: 3px solid #1f2a06;
+      }
+      .actions { display: flex; gap: 10px; margin-top: 6px; }
+      .btn {
+        flex: 1; padding: 15px 10px; border-radius: 16px; border: 1px solid var(--border);
+        background: var(--surface-2); color: var(--text); font-size: 15px; font-weight: 600;
+      }
+      .btn.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+        color: #1f2a06; border-color: transparent;
+        box-shadow: 0 0 22px rgba(184, 238, 62, 0.28);
+      }
+      .btn:active { transform: scale(0.98); }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+      .chip {
+        padding: 10px 13px; border-radius: 13px; border: 1px solid var(--border);
+        background: var(--surface-2); color: var(--muted); font-size: 13px; font-weight: 600;
+      }
+      .chip.on {
+        background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+        color: #1f2a06; border-color: transparent;
+      }
+      .beats { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+      .beat {
+        width: 34px; height: 34px; border-radius: 50%;
+        border: 2px solid var(--border); background: var(--surface);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; color: var(--muted); transition: transform 0.07s, background 0.07s;
+      }
+      .beat.accent { border-color: var(--accent); color: var(--accent); }
+      .beat.mute { opacity: 0.35; }
+      .beat.hit { background: var(--accent); color: #1f2a06; transform: scale(1.25); border-color: var(--accent); }
+      .pendulum { height: 60px; position: relative; overflow: hidden; margin-bottom: 12px; }
+      .pend-arm {
+        position: absolute; left: 50%; top: 4px; width: 3px; height: 52px;
+        background: linear-gradient(180deg, var(--accent), transparent);
+        transform-origin: top center; transition: transform linear;
+      }
+      .hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 10px; }
+      .timer { text-align: center; font-size: 34px; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; }
+      .row { display: flex; align-items: center; gap: 12px; }
+      .offline { text-align: center; font-size: 11px; color: var(--accent-dim); margin-top: 18px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Metrónomo para Piano</h1>
+      <p>Funciona siempre sin conexión</p>
+    </header>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Tempo</h2>
+        <div class="bpm-row">
+          <button class="round" data-step="-1">−</button>
+          <input id="bpm" type="number" min="30" max="280" value="100" inputmode="numeric" />
+          <button class="round" data-step="1">+</button>
+        </div>
+        <div class="term" id="term">Andante</div>
+        <input id="slider" type="range" min="30" max="280" value="100" />
+        <div class="actions">
+          <button class="btn primary" id="toggle">Iniciar</button>
+          <button class="btn" id="tap">Tap Tempo</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Pulso</h2>
+        <div class="pendulum"><div class="pend-arm" id="arm"></div></div>
+        <div class="beats" id="beats"></div>
+        <div class="hint">Toca un círculo para cambiar entre acento, normal y silencio</div>
+      </section>
+
+      <section class="panel">
+        <h2>Compás</h2>
+        <div class="chips" id="signatures"></div>
+        <h2 style="margin-top: 16px">Subdivisión</h2>
+        <div class="chips" id="subdivisions"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Sonido</h2>
+        <div class="chips" id="sounds"></div>
+        <h2 style="margin-top: 16px">Volumen</h2>
+        <div class="row">
+          <button class="btn" id="mute" style="flex: 0 0 auto; padding: 10px 14px">🔊</button>
+          <input id="volume" type="range" min="0" max="100" value="80" />
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Temporizador de práctica</h2>
+        <div class="timer" id="clock">00:00</div>
+        <div class="chips" id="presets" style="justify-content: center; margin-top: 12px"></div>
+        <div class="actions">
+          <button class="btn" id="timerToggle">Iniciar sesión</button>
+          <button class="btn" id="timerReset">Reiniciar</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="offline">Sin internet · Sin anuncios · Audio generado en el dispositivo</div>
+
+    <script>
+      var SIGNATURES = [
+        { label: "2/4", beats: 2, note: 4 },
+        { label: "3/4", beats: 3, note: 4 },
+        { label: "4/4", beats: 4, note: 4 },
+        { label: "5/4", beats: 5, note: 4 },
+        { label: "6/8", beats: 6, note: 8 },
+        { label: "7/8", beats: 7, note: 8 },
+        { label: "12/8", beats: 12, note: 8 },
+      ];
+      var SUBDIVISIONS = [
+        { label: "Negras", value: 1 },
+        { label: "Corcheas", value: 2 },
+        { label: "Tresillos", value: 3 },
+        { label: "Semicorcheas", value: 4 },
+      ];
+      var SOUNDS = [
+        { label: "Madera", value: "wood" },
+        { label: "Beep", value: "beep" },
+        { label: "Tick", value: "tick" },
+        { label: "Campana", value: "bell" },
+      ];
+      var PRESETS = [5, 10, 15, 20, 30];
+
+      var state = {
+        bpm: 100,
+        beats: 4,
+        note: 4,
+        subdivision: 1,
+        sound: "wood",
+        volume: 0.8,
+        muted: false,
+        accents: [2, 1, 1, 1],
+        running: false,
+        timerTarget: 10,
+      };
+
+      try {
+        var saved = JSON.parse(localStorage.getItem("metronome") || "null");
+        if (saved) {
+          for (var k in saved) if (k !== "running") state[k] = saved[k];
+        }
+      } catch (e) {}
+
+      function save() {
+        try { localStorage.setItem("metronome", JSON.stringify(state)); } catch (e) {}
+      }
+
+      function term(bpm) {
+        if (bpm < 46) return "Largo";
+        if (bpm < 60) return "Larghetto";
+        if (bpm < 72) return "Adagio";
+        if (bpm < 88) return "Andante";
+        if (bpm < 110) return "Moderato";
+        if (bpm < 140) return "Allegro";
+        if (bpm < 168) return "Vivace";
+        if (bpm < 200) return "Presto";
+        return "Prestissimo";
+      }
+
+      var ctx = null;
+      var master = null;
+      function audio() {
+        if (!ctx) {
+          var AC = window.AudioContext || window.webkitAudioContext;
+          ctx = new AC();
+          master = ctx.createGain();
+          master.gain.value = state.muted ? 0 : state.volume;
+          master.connect(ctx.destination);
+        }
+        if (ctx.state === "suspended") ctx.resume();
+        return ctx;
+      }
+
+      function noiseBuffer() {
+        if (noiseBuffer.cache) return noiseBuffer.cache;
+        var len = Math.floor(ctx.sampleRate * 0.2);
+        var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        var data = buf.getChannelData(0);
+        for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+        noiseBuffer.cache = buf;
+        return buf;
+      }
+
+      function click(time, level) {
+        // level: 2 accent, 1 normal, 0.5 subdivision
+        var gain = ctx.createGain();
+        gain.connect(master);
+        var kind = state.sound;
+        var vol = level === 2 ? 1 : level === 1 ? 0.62 : 0.32;
+
+        if (kind === "wood") {
+          var src = ctx.createBufferSource();
+          src.buffer = noiseBuffer();
+          var bp = ctx.createBiquadFilter();
+          bp.type = "bandpass";
+          bp.frequency.value = level === 2 ? 2400 : 1500;
+          bp.Q.value = 6;
+          src.connect(bp); bp.connect(gain);
+          gain.gain.setValueAtTime(vol, time);
+          gain.gain.exponentialRampToValueAtTime(0.0008, time + 0.06);
+          src.start(time); src.stop(time + 0.08);
+          return;
+        }
+
+        var osc = ctx.createOscillator();
+        if (kind === "beep") {
+          osc.type = "square";
+          osc.frequency.value = level === 2 ? 1600 : level === 1 ? 1000 : 780;
+          gain.gain.setValueAtTime(vol * 0.5, time);
+          gain.gain.exponentialRampToValueAtTime(0.0008, time + 0.05);
+          osc.connect(gain); osc.start(time); osc.stop(time + 0.06);
+        } else if (kind === "tick") {
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(level === 2 ? 3000 : 2000, time);
+          osc.frequency.exponentialRampToValueAtTime(600, time + 0.03);
+          gain.gain.setValueAtTime(vol * 0.7, time);
+          gain.gain.exponentialRampToValueAtTime(0.0008, time + 0.04);
+          osc.connect(gain); osc.start(time); osc.stop(time + 0.05);
+        } else {
+          osc.type = "sine";
+          osc.frequency.value = level === 2 ? 1320 : level === 1 ? 880 : 660;
+          gain.gain.setValueAtTime(vol * 0.6, time);
+          gain.gain.exponentialRampToValueAtTime(0.0008, time + (level === 2 ? 0.7 : 0.3));
+          osc.connect(gain); osc.start(time); osc.stop(time + 0.8);
+        }
+      }
+
+      var nextTime = 0;
+      var stepIndex = 0;
+      var timerId = null;
+      var visualQueue = [];
+
+      function stepDuration() {
+        var beatSeconds = 60 / state.bpm;
+        if (state.note === 8) beatSeconds = beatSeconds / 2;
+        return beatSeconds / state.subdivision;
+      }
+
+      function scheduler() {
+        while (nextTime < ctx.currentTime + 0.12) {
+          var beat = Math.floor(stepIndex / state.subdivision) % state.beats;
+          var sub = stepIndex % state.subdivision;
+          var accent = state.accents[beat] === undefined ? 1 : state.accents[beat];
+          if (sub === 0) {
+            if (accent > 0) click(nextTime, accent);
+            visualQueue.push({ beat: beat, time: nextTime });
+          } else {
+            click(nextTime, 0.5);
+          }
+          nextTime += stepDuration();
+          stepIndex++;
+        }
+      }
+
+      function start() {
+        audio();
+        state.running = true;
+        stepIndex = 0;
+        nextTime = ctx.currentTime + 0.08;
+        timerId = setInterval(scheduler, 25);
+        document.getElementById("toggle").textContent = "Detener";
+        requestAnimationFrame(paint);
+      }
+
+      function stop() {
+        state.running = false;
+        clearInterval(timerId);
+        timerId = null;
+        visualQueue = [];
+        document.getElementById("toggle").textContent = "Iniciar";
+        var nodes = document.querySelectorAll(".beat");
+        for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove("hit");
+        document.getElementById("arm").style.transform = "rotate(0deg)";
+      }
+
+      var swing = -1;
+      function paint() {
+        if (!state.running) return;
+        while (visualQueue.length && visualQueue[0].time <= ctx.currentTime) {
+          var item = visualQueue.shift();
+          var nodes = document.querySelectorAll(".beat");
+          for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove("hit");
+          if (nodes[item.beat]) nodes[item.beat].classList.add("hit");
+          swing = swing * -1;
+          var arm = document.getElementById("arm");
+          arm.style.transitionDuration = 60 / state.bpm + "s";
+          arm.style.transform = "rotate(" + swing * 24 + "deg)";
+        }
+        requestAnimationFrame(paint);
+      }
+
+      function setBpm(v) {
+        v = Math.max(30, Math.min(280, Math.round(v || 0) || 30));
+        state.bpm = v;
+        document.getElementById("bpm").value = v;
+        document.getElementById("slider").value = v;
+        document.getElementById("term").textContent = term(v);
+        save();
+      }
+
+      function renderBeats() {
+        var host = document.getElementById("beats");
+        host.innerHTML = "";
+        while (state.accents.length < state.beats) state.accents.push(1);
+        state.accents = state.accents.slice(0, state.beats);
+        for (var i = 0; i < state.beats; i++) {
+          (function (i) {
+            var el = document.createElement("div");
+            el.className = "beat" + (state.accents[i] === 2 ? " accent" : state.accents[i] === 0 ? " mute" : "");
+            el.textContent = i + 1;
+            el.addEventListener("click", function () {
+              var cur = state.accents[i];
+              state.accents[i] = cur === 2 ? 1 : cur === 1 ? 0 : 2;
+              save();
+              renderBeats();
+            });
+            host.appendChild(el);
+          })(i);
+        }
+      }
+
+      function renderChips() {
+        var sig = document.getElementById("signatures");
+        sig.innerHTML = "";
+        SIGNATURES.forEach(function (s) {
+          var b = document.createElement("button");
+          b.className = "chip" + (s.beats === state.beats && s.note === state.note ? " on" : "");
+          b.textContent = s.label;
+          b.onclick = function () {
+            state.beats = s.beats; state.note = s.note;
+            state.accents = []; for (var i = 0; i < s.beats; i++) state.accents.push(i === 0 ? 2 : 1);
+            save(); renderChips(); renderBeats();
+            if (state.running) { stop(); start(); }
+          };
+          sig.appendChild(b);
+        });
+
+        var sub = document.getElementById("subdivisions");
+        sub.innerHTML = "";
+        SUBDIVISIONS.forEach(function (s) {
+          var b = document.createElement("button");
+          b.className = "chip" + (s.value === state.subdivision ? " on" : "");
+          b.textContent = s.label;
+          b.onclick = function () {
+            state.subdivision = s.value; save(); renderChips();
+            if (state.running) { stop(); start(); }
+          };
+          sub.appendChild(b);
+        });
+
+        var sounds = document.getElementById("sounds");
+        sounds.innerHTML = "";
+        SOUNDS.forEach(function (s) {
+          var b = document.createElement("button");
+          b.className = "chip" + (s.value === state.sound ? " on" : "");
+          b.textContent = s.label;
+          b.onclick = function () { state.sound = s.value; save(); renderChips(); };
+          sounds.appendChild(b);
+        });
+
+        var presets = document.getElementById("presets");
+        presets.innerHTML = "";
+        PRESETS.forEach(function (m) {
+          var b = document.createElement("button");
+          b.className = "chip" + (m === state.timerTarget ? " on" : "");
+          b.textContent = m + " min";
+          b.onclick = function () { state.timerTarget = m; save(); renderChips(); };
+          presets.appendChild(b);
+        });
+      }
+
+      document.getElementById("toggle").onclick = function () {
+        state.running ? stop() : start();
+      };
+
+      var taps = [];
+      document.getElementById("tap").onclick = function () {
+        var now = Date.now();
+        taps = taps.filter(function (t) { return now - t < 2500; });
+        taps.push(now);
+        if (taps.length >= 2) {
+          var total = 0;
+          for (var i = 1; i < taps.length; i++) total += taps[i] - taps[i - 1];
+          setBpm(60000 / (total / (taps.length - 1)));
+        }
+      };
+
+      var stepButtons = document.querySelectorAll("[data-step]");
+      for (var i = 0; i < stepButtons.length; i++) {
+        (function (btn) {
+          btn.onclick = function () { setBpm(state.bpm + Number(btn.getAttribute("data-step"))); };
+        })(stepButtons[i]);
+      }
+
+      document.getElementById("slider").oninput = function (e) { setBpm(Number(e.target.value)); };
+      document.getElementById("bpm").onchange = function (e) { setBpm(Number(e.target.value)); };
+
+      document.getElementById("volume").value = Math.round(state.volume * 100);
+      document.getElementById("volume").oninput = function (e) {
+        state.volume = Number(e.target.value) / 100;
+        if (master) master.gain.value = state.muted ? 0 : state.volume;
+        save();
+      };
+      document.getElementById("mute").onclick = function () {
+        state.muted = !state.muted;
+        this.textContent = state.muted ? "🔇" : "🔊";
+        if (master) master.gain.value = state.muted ? 0 : state.volume;
+        save();
+      };
+
+      var elapsed = 0, clockId = null;
+      function paintClock() {
+        var m = Math.floor(elapsed / 60), s = elapsed % 60;
+        document.getElementById("clock").textContent =
+          (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+      }
+      document.getElementById("timerToggle").onclick = function () {
+        if (clockId) {
+          clearInterval(clockId); clockId = null; this.textContent = "Iniciar sesión";
+        } else {
+          this.textContent = "Pausar sesión";
+          var btn = this;
+          clockId = setInterval(function () {
+            elapsed++; paintClock();
+            if (elapsed >= state.timerTarget * 60) {
+              clearInterval(clockId); clockId = null; btn.textContent = "Iniciar sesión";
+              audio(); click(ctx.currentTime, 2); click(ctx.currentTime + 0.25, 2);
+            }
+          }, 1000);
+        }
+      };
+      document.getElementById("timerReset").onclick = function () {
+        if (clockId) { clearInterval(clockId); clockId = null; }
+        document.getElementById("timerToggle").textContent = "Iniciar sesión";
+        elapsed = 0; paintClock();
+      };
+
+      document.getElementById("mute").textContent = state.muted ? "🔇" : "🔊";
+      setBpm(state.bpm);
+      renderChips();
+      renderBeats();
+      paintClock();
+    </script>
+  </body>
+</html>
