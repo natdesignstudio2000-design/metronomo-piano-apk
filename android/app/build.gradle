@@ -1,0 +1,45 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.natdesign.metronomopiano"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.natdesign.metronomopiano"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            def storeFilePath = System.getenv("KEYSTORE_FILE")
+            if (storeFilePath != null) {
+                storeFile file(storeFilePath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.webkit:webkit:1.11.0"
+}
