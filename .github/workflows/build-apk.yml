@@ -4,20 +4,16 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
-    inputs:
-      app_url:
-        description: "URL publicada de la PWA (deja el valor por defecto si ya publicaste en Lovable)"
-        required: true
-        default: "https://metronomo-fasic.lovable.app"
-
-env:
-  PWA_URL: ${{ github.event.inputs.app_url || 'https://metronomo-fasic.lovable.app' }}
-  BUBBLEWRAP_KEYSTORE_PASSWORD: android
-  BUBBLEWRAP_KEY_PASSWORD: android
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      KEYSTORE_FILE: ${{ github.workspace }}/android.keystore
+      KEYSTORE_PASSWORD: android
+      KEY_ALIAS: android
+      KEY_PASSWORD: android
 
     steps:
       - name: Checkout repo
@@ -29,82 +25,60 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: "build-tools;34.0.0 platforms;android-34 platform-tools"
 
-      - name: Fix Android SDK structure for Bubblewrap
-        run: |
-          sudo ln -sf "$ANDROID_HOME/cmdline-tools/latest" "$ANDROID_HOME/tools"
-          sudo ln -sf "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/bin"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
 
-      - name: Install Bubblewrap
-        run: npm install -g @bubblewrap/cli
-
-      - name: Configure Bubblewrap non-interactively
+      - name: Copy offline web app into the APK assets
         run: |
-          mkdir -p "$HOME/.bubblewrap"
-          cat > "$HOME/.bubblewrap/config.json" <<EOF
-          {
-            "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${ANDROID_HOME}"
-          }
-          EOF
-          cat "$HOME/.bubblewrap/config.json"
+          mkdir -p android/app/src/main/assets/www
+          cp -R native/www/. android/app/src/main/assets/www/
+          ls -R android/app/src/main/assets/www
 
-      - name: Override PWA URL if provided
+      - name: Prepare launcher icons
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            node -e "
-              const fs = require('fs');
-              const url = process.env.PWA_URL.replace(/\/$/, '');
-              const host = url.replace(/^https?:\/\//, '').split('/')[0];
-              const m = JSON.parse(fs.readFileSync('twa-manifest.json', 'utf8'));
-              m.host = host;
-              m.webManifestUrl = url + '/manifest.webmanifest';
-              m.iconUrl = url + '/icon-512.png';
-              m.maskableIconUrl = url + '/icon-512.png';
-              fs.writeFileSync('twa-manifest.json', JSON.stringify(m, null, 2));
-            "
-            echo "Using PWA_URL: $PWA_URL"
-            cat twa-manifest.json
-          fi
+          for d in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            mkdir -p "android/app/src/main/res/$d"
+            cp public/icon-512.png "android/app/src/main/res/$d/ic_launcher.png"
+          done
 
-      - name: Generate Android signing keystore
+      - name: Generate signing keystore
         run: |
-          keytool -genkey \
-            -v \
-            -keystore android.keystore \
-            -alias android \
+          keytool -genkeypair \
+            -keystore "$KEYSTORE_FILE" \
+            -alias "$KEY_ALIAS" \
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -storepass android \
-            -keypass android \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
             -dname "CN=Metronomo Piano, OU=Natdesign, O=Natdesign, L=Caracas, ST=DC, C=VE"
 
-      - name: Generate Android project from TWA manifest
-        run: bubblewrap update --skipVersionUpgrade
+      - name: Build signed release APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon
 
-      - name: Build signed APK
-        run: bubblewrap build
+      - name: Rename APK
+        run: |
+          find android/app/build/outputs/apk -name "*.apk" -print
+          cp android/app/build/outputs/apk/release/app-release.apk metronomo-offline.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: metronomo-apk
-          path: ./app-release-signed.apk
+          path: metronomo-offline.apk
           if-no-files-found: error
 
       - name: Upload keystore
         uses: actions/upload-artifact@v4
         with:
           name: metronomo-keystore
-          path: ./android.keystore
+          path: android.keystore
           if-no-files-found: error
