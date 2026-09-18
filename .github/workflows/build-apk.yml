@@ -1,0 +1,106 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "URL publicada de la PWA (deja el valor por defecto si ya publicaste en Lovable)"
+        required: true
+        default: "https://metronomo-fasic.lovable.app"
+
+env:
+  PWA_URL: ${{ github.event.inputs.app_url || 'https://metronomo-fasic.lovable.app' }}
+  BUBBLEWRAP_KEYSTORE_PASSWORD: android
+  BUBBLEWRAP_KEY_PASSWORD: android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          packages: "build-tools;34.0.0 platforms;android-34 platform-tools"
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Configure Bubblewrap non-interactively
+        run: |
+          mkdir -p "$HOME/.bubblewrap"
+          cat > "$HOME/.bubblewrap/config.json" <<EOF
+          {
+            "jdkPath": "${JAVA_HOME}",
+            "androidSdkPath": "${ANDROID_SDK_ROOT}"
+          }
+          EOF
+          cat "$HOME/.bubblewrap/config.json"
+
+      - name: Override PWA URL if provided
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            node -e "
+              const fs = require('fs');
+              const url = process.env.PWA_URL.replace(/\/$/, '');
+              const host = url.replace(/^https?:\/\//, '').split('/')[0];
+              const m = JSON.parse(fs.readFileSync('twa-manifest.json', 'utf8'));
+              m.host = host;
+              m.webManifestUrl = url + '/manifest.webmanifest';
+              m.iconUrl = url + '/icon-512.png';
+              m.maskableIconUrl = url + '/icon-512.png';
+              fs.writeFileSync('twa-manifest.json', JSON.stringify(m, null, 2));
+            "
+            echo "Using PWA_URL: $PWA_URL"
+            cat twa-manifest.json
+          fi
+
+      - name: Generate Android signing keystore
+        run: |
+          keytool -genkey \
+            -v \
+            -keystore android.keystore \
+            -alias android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Metronomo Piano, OU=Natdesign, O=Natdesign, L=Caracas, ST=DC, C=VE"
+
+      - name: Generate Android project from TWA manifest
+        run: bubblewrap update --skipVersionUpgrade
+
+      - name: Build signed APK
+        run: bubblewrap build
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: metronomo-apk
+          path: ./app-release-signed.apk
+          if-no-files-found: error
+
+      - name: Upload keystore
+        uses: actions/upload-artifact@v4
+        with:
+          name: metronomo-keystore
+          path: ./android.keystore
+          if-no-files-found: error
