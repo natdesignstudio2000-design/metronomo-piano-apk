@@ -35,10 +35,14 @@ jobs:
           node-version: "20"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          cmdline-tools-version: 11076708
           packages: "build-tools;34.0.0 platforms;android-34 platform-tools"
+
+      - name: Fix Android SDK structure for Bubblewrap
+        run: |
+          sudo ln -sf "$ANDROID_HOME/cmdline-tools/latest" "$ANDROID_HOME/tools"
+          sudo ln -sf "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/bin"
 
       - name: Install Bubblewrap
         run: npm install -g @bubblewrap/cli
@@ -49,7 +53,7 @@ jobs:
           cat > "$HOME/.bubblewrap/config.json" <<EOF
           {
             "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${ANDROID_SDK_ROOT}"
+            "androidSdkPath": "${ANDROID_HOME}"
           }
           EOF
           cat "$HOME/.bubblewrap/config.json"
